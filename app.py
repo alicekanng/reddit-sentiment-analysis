@@ -169,7 +169,7 @@ def update_hover_maps(selected_keyword):
         scope="usa",
         color_discrete_map={"left": "#9AD3A2", "right": "#FFBDBF", "center": "#ADDFFF"}
     )
-    fig_before.update_layout(title="Before the Election", title_x=0.5)
+    fig_before.update_layout(title=None, title_x=0.5)
 
     fig_after = px.choropleth(
         filtered_after,
@@ -180,7 +180,7 @@ def update_hover_maps(selected_keyword):
         scope="usa",
         color_discrete_map={"left": "#9AD3A2", "right": "#FFBDBF", "center": "#ADDFFF"}
     )
-    fig_after.update_layout(title="After the Election", title_x=0.5)
+    fig_after.update_layout(title=None, title_x=0.5)
 
     return fig_before, fig_after
 

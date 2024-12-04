@@ -61,7 +61,7 @@ home_layout = html.Div(
                 ),
                 html.A(
                     html.Button(
-                        "Detailed Analysis",
+                        "Political Topic Analysis",
                         style={
                             "fontSize": "18px",
                             "padding": "12px 30px",

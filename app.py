@@ -4,13 +4,9 @@ from dash.dependencies import Input, Output
 import plotly.express as px
 import pandas as pd
 import json
+from layouts import home_layout, analysis_layout, create_detailed_analysis_layout
 
-# Load JSON data
-with open('post_sentiment_per_state.json') as f:
-    raw_data = json.load(f)
-    data = json.loads(raw_data)
 
-# Normalize state names in state_to_code
 state_to_code = {
     "alabama": "AL", "alaska": "AK", "arizona": "AZ", "arkansas": "AR", "california": "CA",
     "colorado": "CO", "connecticut": "CT", "delaware": "DE", "florida": "FL", "georgia": "GA",
@@ -26,10 +22,77 @@ state_to_code = {
 }
 normalized_state_to_code = {state.replace(" ", "").lower(): code for state, code in state_to_code.items()}
 
-map_data = pd.DataFrame({
-    'State': [normalized_state_to_code[state.lower()] for state in data.keys()],
-    'Dominant Sentiment': [data[state]['sentiment'] for state in data.keys()],
-    'Average Sentiment': [data[state]['avg_sentiment'] for state in data.keys()]
+
+
+# Load JSON data - Candidates
+with open('data/candidate_sentiments/after_cand_comment_sentiments.json') as f:
+    data_after = json.load(f)
+
+with open('data/candidate_sentiments/before_cand_comment_sentiments.json') as f:
+    data_before = json.load(f)
+
+# Load JSON data - Topics
+with open('data/topic_pol_directions/after_topic_comment_stats.json') as f:
+    topics_data_after = json.load(f)
+
+with open('data/topic_pol_directions/after_topic_comment_stats.json') as f:
+    topics_data_before = json.load(f)
+
+
+# Normalize and Prepare the Data
+def prepare_data(data, election_period):
+    rows = []
+    for state, topics in data.items():
+        # Normalize the state name and map to abbreviation
+        state_code = state_to_code.get(state.strip().lower(), None)  # Handle missing or invalid states
+        
+        # Skip invalid states
+        if not state_code:
+            continue
+        
+        for topic, details in topics.items():
+            row = {
+                "State": state_code,
+                "Topic": topic.capitalize(),
+                "Dominant Sentiment": details.get("direction"),
+                "Election Period": election_period,
+            }
+            rows.append(row)
+    return rows
+
+
+data_before_rows = prepare_data(topics_data_before, "Before")
+data_after_rows = prepare_data(topics_data_after, "After")
+
+
+# Combine Both Periods into One DataFrame
+df = pd.DataFrame(data_before_rows + data_after_rows)
+detailed_analysis_layout = create_detailed_analysis_layout(df)
+    
+# AFTER ELECTION
+trump_map_data_after = pd.DataFrame({
+    'State': [normalized_state_to_code[state.lower()] for state in data_after.keys()],
+    'Dominant Sentiment': [data_after[state]['trump']['sentiment'] for state in data_after.keys()],
+    'Average Sentiment': [data_after[state]['trump']['avg_sentiment'] for state in data_after.keys()]
+})
+
+kamala_map_data_after = pd.DataFrame({
+    'State': [normalized_state_to_code[state.lower()] for state in data_after.keys()],
+    'Dominant Sentiment': [data_after[state]['harris']['sentiment'] for state in data_after.keys()],
+    'Average Sentiment': [data_after[state]['harris']['avg_sentiment'] for state in data_after.keys()]
+})
+
+# BEFORE ELECTION
+trump_map_data_before = pd.DataFrame({
+    'State': [normalized_state_to_code[state.lower()] for state in data_before.keys()],
+    'Dominant Sentiment': [data_before[state]['trump']['sentiment'] for state in data_before.keys()],
+    'Average Sentiment': [data_before[state]['trump']['avg_sentiment'] for state in data_before.keys()]
+})
+
+kamala_map_data_before = pd.DataFrame({
+    'State': [normalized_state_to_code[state.lower()] for state in data_before.keys()],
+    'Dominant Sentiment': [data_before[state]['harris']['sentiment'] for state in data_before.keys()],
+    'Average Sentiment': [data_before[state]['harris']['avg_sentiment'] for state in data_before.keys()]
 })
 
 # Define color mapping
@@ -39,125 +102,37 @@ color_discrete_map = {
     "negative": "#FFBDBF"   # light red
 }
 
+# Initialize Dash app
+app = dash.Dash(__name__, suppress_callback_exceptions=True)
 
-app = dash.Dash(__name__)
-
-app.layout = html.Div(
-    style={
-        "fontFamily": "Arial, sans-serif",
-        "backgroundColor": "#FFFFFF",
-        "padding": "20px"
-    },
-    children=[
-        html.H1(
-            "US Sentiment Analysis Dashboard",
-            style={
-                "textAlign": "center",
-                "color": "#333",
-                "fontSize": "40px",
-                "marginBottom": "20px"
-            }
-        ),
-        html.P(
-            "This dashboard visualizes the dominant sentiment across U.S. states, derived from Reddit posts and comments. Data is analyzed from three weeks before and after the 2024 presidential election between Donald Trump and Kamala Harris. The dashboard highlights geographical trends in sentiment as observed through Reddit activity.",
-            style={
-                "textAlign": "center",
-                "color": "#666",
-                "fontSize": "18px",
-                "marginBottom": "30px",
-                "maxWidth": "80%",
-                "marginLeft": "auto",
-                "marginRight": "auto"
-            }
-        ),
-        html.Div(
-            style={"display": "flex", "justifyContent": "space-between", "gap": "20px"},
-            children=[
-                html.Div(
-                    style={"flex": "1"},
-                    children=[
-                        html.H2(
-                            "Before the Election",
-                            style={"textAlign": "center", "color": "#333", "marginBottom": "10px"}
-                        ),
-                        dcc.Graph(
-                            id='sentiment-map-before',
-                            config={"displayModeBar": False}
-                        )
-                    ]
-                ),
-                html.Div(
-                    style={"flex": "1"},
-                    children=[
-                        html.H2(
-                            "After the Election",
-                            style={"textAlign": "center", "color": "#333", "marginBottom": "10px"}
-                        ),
-                        dcc.Graph(
-                            id='sentiment-map-after',
-                            config={"displayModeBar": False}
-                        )
-                    ]
-                )
-            ]
-        ),
-        html.Div(
-            style={
-                "textAlign": "center",
-                "color": "#666",
-                "fontSize": "18px",
-                "marginTop": "30px",
-                "maxWidth": "80%",
-                "marginLeft": "auto",
-                "marginRight": "auto"
-            },
-            children=[
-                html.H3("Methodology", style={"color": "#333"}),
-                html.P(
-                    "The sentiment analysis was performed on Reddit posts and comments sourced from state-specific subreddits. "
-                    "Posts and comments were extracted from a three-week period before and after the election, processed using sentiment analysis algorithms, "
-                    "and aggregated to determine the dominant sentiment (positive, neutral, or negative) in each state."
-                ),
-                html.P(
-                    "Due to limitations in Reddit's API, it was not possible to extract the required information for 10 states. "
-                    "These limitations include restrictions on API calls and the sheer volume of posts in specific state subreddits, "
-                    "which exceeded the API's capacity to process within the designated three-week timeframes."
-                )
-            ]
-        ),
-        html.Footer(
-            "Data Source: Analysis of Reddit Posts and Comments from State Subreddits",
-            style={
-                "textAlign": "center",
-                "color": "#999",
-                "fontSize": "14px",
-                "marginTop": "20px"
-            }
-        )
-    ]
-)
-
-# Callbacks for the maps
-@app.callback(
-    Output('sentiment-map-before', 'figure'),
-    Input('sentiment-map-before', 'id')
-)
-def update_map_before(_):
-    return generate_map("Dominant Sentiment Before the Election")
+# Update Layout Based on URL
+app.layout = html.Div([
+    dcc.Location(id='url', refresh=False),
+    html.Div(id='page-content')
+])
 
 
-@app.callback(
-    Output('sentiment-map-after', 'figure'),
-    Input('sentiment-map-after', 'id')
-)
-def update_map_after(_):
-    return generate_map("Dominant Sentiment After the Election")
+# Existing Callbacks for Graphs
+@app.callback(Output('trump-map-before', 'figure'), Input('trump-map-before', 'id'))
+def update_trump_map_before(_):
+    return generate_map(trump_map_data_before, "Trump - Before the Election")
 
+@app.callback(Output('kamala-map-before', 'figure'), Input('kamala-map-before', 'id'))
+def update_kamala_map_before(_):
+    return generate_map(kamala_map_data_before, "Kamala - Before the Election")
+
+@app.callback(Output('trump-map-after', 'figure'), Input('trump-map-after', 'id'))
+def update_trump_map_after(_):
+    return generate_map(trump_map_data_after, "Trump - After the Election")
+
+@app.callback(Output('kamala-map-after', 'figure'), Input('kamala-map-after', 'id'))
+def update_kamala_map_after(_):
+    return generate_map(kamala_map_data_after, "Kamala - After the Election")
 
 # Function to generate a map
-def generate_map(title):
+def generate_map(data, title):
     fig = px.choropleth(
-        map_data,
+        data,
         locations="State",
         locationmode="USA-states",
         color="Dominant Sentiment",
@@ -167,7 +142,7 @@ def generate_map(title):
         color_discrete_map=color_discrete_map
     )
     fig.update_layout(
-        title=title,
+        title=None,
         title_x=0.5,
         geo=dict(lakecolor="lightblue"),
         hoverlabel=dict(bgcolor="white", font_size=14, font_family="Arial")
@@ -175,6 +150,48 @@ def generate_map(title):
     return fig
 
 
+
+# Callback to Update Maps
+@app.callback(
+    [Output("hover-map-before", "figure"), Output("hover-map-after", "figure")],
+    Input("keyword-dropdown", "value")
+)
+def update_hover_maps(selected_keyword):
+    filtered_before = df[(df["Topic"] == selected_keyword) & (df["Election Period"] == "Before")]
+    filtered_after = df[(df["Topic"] == selected_keyword) & (df["Election Period"] == "After")]
+
+    fig_before = px.choropleth(
+        filtered_before,
+        locations="State",
+        locationmode="USA-states",
+        color="Dominant Sentiment",
+        hover_name="State",
+        scope="usa",
+        color_discrete_map={"left": "#9AD3A2", "right": "#FFBDBF", "center": "#ADDFFF"}
+    )
+    fig_before.update_layout(title="Before the Election", title_x=0.5)
+
+    fig_after = px.choropleth(
+        filtered_after,
+        locations="State",
+        locationmode="USA-states",
+        color="Dominant Sentiment",
+        hover_name="State",
+        scope="usa",
+        color_discrete_map={"left": "#9AD3A2", "right": "#FFBDBF", "center": "#ADDFFF"}
+    )
+    fig_after.update_layout(title="After the Election", title_x=0.5)
+
+    return fig_before, fig_after
+
+@app.callback(Output("page-content", "children"), [Input("url", "pathname")])
+def display_page(pathname):
+    if pathname == "/analysis":
+        return analysis_layout  # Ensure analysis_layout is defined
+    elif pathname == "/detailed-analysis":
+        return detailed_analysis_layout
+    else:
+        return home_layout
 # Run the app
 if __name__ == '__main__':
     app.run_server(debug=True)
